@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五惠外倉 存貨設備管理系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        .card-shadow { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<div id="app" v-cloak class="min-h-screen">
+    <!-- TOP表頭 -->
+    <header class="bg-red-800 text-white shadow-xl sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl md:text-2xl font-black tracking-widest">五惠外倉</h1>
+                <p class="text-xs opacity-80 font-bold">存貨設備管理系統</p>
+            </div>
+            <div class="flex space-x-2">
+                <button @click="showAddModal = true" class="bg-yellow-500 hover:bg-yellow-600 text-red-900 px-4 py-2 rounded-xl font-black text-sm shadow-lg transition-transform active:scale-95">
+                    + 新增物品
+                </button>
+                <button @click="exportCSV" class="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-bold text-sm transition">
+                    ↓ 下載報表
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <!-- 搜尋與分類按鈕 -->
+        <div class="flex flex-col md:flex-row gap-4 mb-8">
+            <div class="flex p-1 bg-gray-200 rounded-2xl w-full md:w-fit">
+                <button v-for="tab in ['全部', '設備', '物料']" @click="currentTab = tab" 
+                    :class="currentTab === tab ? 'bg-white shadow text-red-800' : 'text-gray-500'"
+                    class="flex-1 md:flex-none px-8 py-2 rounded-xl font-black transition duration-200">
+                    {{ tab }}
+                </button>
+            </div>
+            <div class="relative flex-grow">
+                <input v-model="searchQuery" type="text" placeholder="🔍 搜尋名稱 (例如: 榨汁機)..." 
+                    class="w-full px-5 py-3 border-none rounded-2xl shadow-inner bg-gray-200 focus:ring-2 focus:ring-red-500 outline-none transition">
+            </div>
+        </div>
+
+        <!-- 讀取狀態 -->
+        <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+            <div class="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-gray-500 font-bold">正在讀取雲端資料...</p>
+        </div>
+
+        <!-- 空資料提示 -->
+        <div v-else-if="filteredItems.length === 0" class="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-300">
+            <p class="text-gray-400 font-bold text-lg">目前沒有任何項目，請點擊右上方「新增物品」</p>
+        </div>
+
+        <!-- 清楚的照片/名稱清單 -->
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <div v-for="(item, index) in filteredItems" :key="index" class="bg-white rounded-3xl card-shadow overflow-hidden group hover:-translate-y-1 transition duration-300">
+                <!-- 照片 -->
+                <div class="h-64 bg-slate-200 relative overflow-hidden">
+                    <img :src="item.photoID ? `https://lh3.googleusercontent.com/d/${item.photoID}` : 'https://placehold.co/600x400?text=五惠外倉'" 
+                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                    <div class="absolute top-4 left-4 bg-red-800 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg">
+                        {{ item.category }}
+                    </div>
+                </div>
+                <!-- 名稱與數量 -->
+                <div class="p-6">
+                    <div class="flex justify-between items-end">
+                        <h3 class="text-xl font-bold text-slate-800">{{ item.name }}</h3>
+                        <div class="text-right">
+                            <span class="text-4xl font-black text-red-600 tracking-tighter">{{ item.qty }}</span>
+                            <span class="ml-1 text-slate-400 font-bold">{{ item.category === '設備' ? '台' : '板' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 新增物品彈窗 -->
+    <div v-if="showAddModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+        <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative">
+            <!-- 上傳中遮罩 -->
+            <div v-if="uploading" class="absolute inset-0 bg-white/95 z-10 flex flex-col items-center justify-center rounded-[2rem]">
+                <div class="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p class="font-black text-red-800 text-xl tracking-widest animate-pulse">上傳至雲端中...</p>
+                <p class="text-gray-400 text-sm mt-2">請勿關閉視窗</p>
+            </div>
+
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-black text-slate-800 border-l-8 border-red-600 pl-3">新增存放物品</h2>
+                <button @click="showAddModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-2xl">×</button>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-black text-gray-400 mb-2">1. 選擇分類</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button @click="newItem.category = '設備'" :class="newItem.category === '設備' ? 'bg-red-800 text-white border-red-800 shadow-lg' : 'bg-gray-100 text-gray-400 border-transparent'" class="py-4 rounded-2xl border-2 font-black transition-all">設備 (台)</button>
+                        <button @click="newItem.category = '物料'" :class="newItem.category === '物料' ? 'bg-red-800 text-white border-red-800 shadow-lg' : 'bg-gray-100 text-gray-400 border-transparent'" class="py-4 rounded-2xl border-2 font-black transition-all">物料 (板)</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-black text-gray-400 mb-2">2. 物品名稱</label>
+                    <input v-model="newItem.name" type="text" placeholder="例如：榨汁機" class="w-full bg-gray-100 border-none rounded-2xl px-5 py-4 focus:ring-2 focus:ring-red-500 outline-none font-bold">
+                </div>
+                <div>
+                    <label class="block text-sm font-black text-gray-400 mb-2">3. 存放數量</label>
+                    <input v-model="newItem.qty" type="number" class="w-full bg-gray-100 border-none rounded-2xl px-5 py-4 focus:ring-2 focus:ring-red-500 outline-none font-bold">
+                </div>
+                <div>
+                    <label class="block text-sm font-black text-gray-400 mb-2">4. 拍攝/上傳照片</label>
+                    <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50 hover:bg-gray-100 transition relative">
+                        <input type="file" @change="handleFileUpload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer">
+                        <div v-if="!newItem.image" class="text-center">
+                            <span class="text-4xl text-gray-300 mb-2 block">📷</span>
+                            <span class="text-gray-400 font-bold">點擊拍照或選擇圖片</span>
+                        </div>
+                        <img v-else :src="newItem.image" class="h-32 w-full object-cover rounded-xl">
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8">
+                <button @click="submitItem" class="w-full bg-red-800 text-white py-5 rounded-2xl font-black text-lg shadow-xl hover:bg-red-900 transition-all active:scale-95 shadow-red-200">
+                    確認新增並存檔
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 您剛才部署成功的 Web App URL
+const API_URL = 'https://script.google.com/macros/s/AKfycbwivxljVfMXlxbugME9GmAln4ig90jNFGCSClhm8G8tg8pkmAw_TCxCIYDUvZrXGLx4dg/exec';
+
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const loading = ref(true);
+        const uploading = ref(false);
+        const showAddModal = ref(false);
+        const currentTab = ref('全部');
+        const searchQuery = ref('');
+        const items = ref([]);
+        const newItem = ref({ category: '設備', name: '', qty: 1, image: null });
+
+        // 從試算表讀取資料
+        const fetchData = async () => {
+            loading.value = true;
+            try {
+                const res = await fetch(API_URL);
+                const data = await res.json();
+                items.value = data;
+            } catch (e) { console.error('讀取失敗', e); }
+            loading.value = false;
+        };
+
+        // 處理照片檔案
+        const handleFileUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => { newItem.value.image = f.target.result; };
+            reader.readAsDataURL(file);
+        };
+
+        // 送出資料到 Google
+        const submitItem = async () => {
+            if (!newItem.value.name) return alert('請輸入物品名稱');
+            if (!newItem.value.image) return alert('請先拍照或選擇照片');
+            
+            uploading.value = true;
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // 解決跨網域上傳問題
+                    body: JSON.stringify(newItem.value)
+                });
+                
+                // 延遲一下再重新讀取，給 Google 試算表一點點反應時間
+                setTimeout(async () => {
+                    await fetchData();
+                    showAddModal.value = false;
+                    uploading.value = false;
+                    newItem.value = { category: '設備', name: '', qty: 1, image: null };
+                    alert('新增成功！');
+                }, 1500);
+                
+            } catch (e) { 
+                alert('上傳發生錯誤，請稍後再試');
+                uploading.value = false;
+            }
+        };
+
+        // 前端搜尋與分類邏輯
+        const filteredItems = computed(() => {
+            const result = items.value.filter(i => {
+                const matchTab = currentTab.value === '全部' || i.category === currentTab.value;
+                const matchSearch = String(i.name).includes(searchQuery.value);
+                return matchTab && matchSearch;
+            });
+            return [...result].reverse(); // 最新的排在前面
+        });
+
+        // 匯出報表
+        const exportCSV = () => {
+            let csv = "\ufeff名稱,分類,數量,單位\n";
+            items.value.forEach(i => {
+                csv += `${i.name},${i.category},${i.qty},${i.category === '設備' ? '台' : '板'}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `五惠外倉報表_${new Date().toLocaleDateString()}.csv`;
+            a.click();
+        };
+
+        onMounted(fetchData);
+
+        return { loading, uploading, showAddModal, currentTab, searchQuery, filteredItems, newItem, handleFileUpload, submitItem, exportCSV };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
