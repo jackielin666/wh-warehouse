@@ -11,58 +11,55 @@
 <body class="bg-slate-50 text-slate-800">
 
 <div id="app" v-cloak class="min-h-screen flex flex-col">
-    <!-- TOP表頭 -->
-    <header class="bg-red-800 text-white shadow-xl sticky top-0 z-50">
-        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+    <header class="bg-red-800 text-white shadow-xl sticky top-0 z-50 p-4">
+        <div class="container mx-auto flex justify-between items-center">
             <div @click="viewMode = 'list'" class="cursor-pointer">
-                <h1 class="text-xl md:text-2xl font-black tracking-widest text-white">五惠外倉</h1>
-                <p class="text-xs opacity-80 font-bold">存貨設備管理系統</p>
+                <h1 class="text-xl md:text-2xl font-black">五惠外倉系統</h1>
             </div>
             <div class="flex space-x-2">
-                <button @click="showAddModal = true" class="bg-yellow-500 hover:bg-yellow-600 text-red-900 px-4 py-2 rounded-xl font-black text-sm shadow-lg transition">
-                    + 新增
-                </button>
-                <button @click="exportCSV" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-white text-sm transition">
-                    ↓ 報表
-                </button>
+                <button @click="openAddModal" class="bg-yellow-500 text-red-900 px-4 py-2 rounded-xl font-black text-sm shadow-lg">+ 新增</button>
+                <button @click="exportCSV" class="bg-white/10 px-3 py-2 rounded-xl text-white text-sm tracking-tighter">↓ 報表</button>
             </div>
         </div>
     </header>
 
-    <!-- 導航切換 -->
-    <nav class="bg-white border-b sticky top-[72px] z-40">
-        <div class="container mx-auto px-4 flex">
-            <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-4 font-bold transition">清單瀏覽</button>
-            <button @click="viewMode = 'chart'" :class="viewMode === 'chart' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-4 font-bold transition">統計分析</button>
-        </div>
+    <nav class="bg-white border-b sticky top-[72px] z-40 flex shadow-sm">
+        <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-4 font-bold transition">清單瀏覽</button>
+        <button @click="viewMode = 'chart'" :class="viewMode === 'chart' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-4 font-bold transition">統計分析</button>
     </nav>
 
     <main class="container mx-auto px-4 py-6 flex-grow">
-        <!-- 模式一：清單瀏覽 -->
         <div v-if="viewMode === 'list'">
             <div class="flex flex-col md:flex-row gap-4 mb-8">
                 <div class="flex p-1 bg-gray-200 rounded-2xl w-full md:w-fit">
                     <button v-for="tab in ['全部', '設備', '物料']" @click="currentTab = tab" 
                         :class="currentTab === tab ? 'bg-white shadow text-red-800' : 'text-gray-500'"
-                        class="flex-1 md:flex-none px-8 py-2 rounded-xl font-black transition duration-200 uppercase text-sm">
-                        {{ tab }}
-                    </button>
+                        class="flex-1 px-8 py-2 rounded-xl font-black transition text-sm">{{ tab }}</button>
                 </div>
                 <input v-model="searchQuery" type="text" placeholder="🔍 搜尋名稱..." class="flex-grow px-5 py-3 border-none rounded-2xl shadow-inner bg-gray-200 focus:ring-2 focus:ring-red-500 outline-none font-bold">
             </div>
 
-            <div v-if="loading" class="text-center py-20 text-gray-400 font-bold italic">同步雲端資料中...</div>
+            <div v-if="loading" class="text-center py-20 text-gray-400 font-bold">正在讀取雲端資料...</div>
 
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div v-for="(item, index) in filteredItems" :key="index" class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="h-56 bg-slate-200 relative">
-                        <img :src="item.photoID ? `https://lh3.googleusercontent.com/d/${item.photoID}` : 'https://placehold.co/600x400?text=無照片'" class="w-full h-full object-cover">
-                        <div class="absolute top-3 left-3 bg-red-800 text-white px-3 py-1 rounded-full text-[10px] font-black">{{ item.category }}</div>
+                <div v-for="(item, index) in filteredItems" :key="index" class="bg-white rounded-3xl shadow-sm border overflow-hidden relative group">
+                    <!-- 控制按鈕組 -->
+                    <div class="absolute top-3 right-3 flex space-x-1 opacity-0 group-hover:opacity-100 transition z-10">
+                        <button @click="openEditModal(item)" class="bg-blue-600 text-white p-2 rounded-lg text-xs font-bold shadow">修改</button>
+                        <button @click="deleteItem(item)" class="bg-red-600 text-white p-2 rounded-lg text-xs font-bold shadow">刪除</button>
                     </div>
-                    <div class="p-5 flex justify-between items-center">
-                        <h3 class="text-lg font-bold text-slate-800">{{ item.name }}</h3>
+                    
+                    <!-- 圖片容器 (修正顯示比例) -->
+                    <div class="h-56 bg-gray-100 flex items-center justify-center relative">
+                        <img :src="item.photoID ? 'https://drive.google.com/thumbnail?id=' + item.photoID + '&sz=w800' : 'https://placehold.co/600x400?text=無照片'" 
+                             class="max-w-full max-h-full object-contain"> <!-- 改用 contain 確保設備完整 -->
+                        <div class="absolute top-3 left-3 bg-red-800 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-sm">{{ item.category }}</div>
+                    </div>
+
+                    <div class="p-5 flex justify-between items-center bg-white">
+                        <h3 class="text-lg font-bold text-slate-800 tracking-tighter">{{ item.name }}</h3>
                         <div class="text-right">
-                            <span class="text-2xl font-black text-red-600">{{ item.qty }}</span>
+                            <span class="text-3xl font-black text-red-600 leading-none">{{ item.qty }}</span>
                             <span class="ml-1 text-gray-400 font-bold text-xs">{{ item.category === '設備' ? '台' : '板' }}</span>
                         </div>
                     </div>
@@ -70,72 +67,58 @@
             </div>
         </div>
 
-        <!-- 模式二：統計分析 -->
-        <div v-if="viewMode === 'chart'" class="space-y-6 animate-fadeIn">
-            <!-- 數字大卡片 -->
+        <div v-if="viewMode === 'chart'" class="space-y-6">
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border-t-8 border-blue-500">
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border-t-8 border-blue-500 text-center">
                     <p class="text-gray-500 font-bold text-sm">設備總計</p>
-                    <p class="text-4xl font-black text-blue-600">{{ stats.equipmentTotal }} <span class="text-sm font-normal text-gray-400">台</span></p>
+                    <p class="text-4xl font-black text-blue-600 tracking-tighter">{{ stats.equipmentTotal }}台</p>
                 </div>
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border-t-8 border-green-500">
+                <div class="bg-white p-6 rounded-[2rem] shadow-sm border-t-8 border-green-500 text-center">
                     <p class="text-gray-500 font-bold text-sm">物料總計</p>
-                    <p class="text-4xl font-black text-green-600">{{ stats.materialTotal }} <span class="text-sm font-normal text-gray-400">板</span></p>
-                </div>
-            </div>
-
-            <!-- 分類進度條圖表 -->
-            <div class="bg-white p-8 rounded-[2rem] shadow-sm">
-                <h3 class="font-black text-xl mb-6 flex items-center"><span class="w-2 h-6 bg-red-600 mr-2 rounded"></span>大類存量佔比</h3>
-                <div class="space-y-6">
-                    <div>
-                        <div class="flex justify-between mb-2 font-bold"><span>設備 ({{ stats.equipmentCount }} 品項)</span><span>{{ stats.equipmentTotal }} 台</span></div>
-                        <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden"><div class="bg-blue-500 h-full transition-all duration-1000" :style="{width: stats.eqPercent + '%'}"></div></div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-2 font-bold"><span>物料 ({{ stats.materialCount }} 品項)</span><span>{{ stats.materialTotal }} 板</span></div>
-                        <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden"><div class="bg-green-500 h-full transition-all duration-1000" :style="{width: stats.matPercent + '%'}"></div></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 品項清單統計 -->
-            <div class="bg-white p-6 rounded-[2rem] shadow-sm">
-                <h3 class="font-black text-xl mb-4 text-slate-700">物料清單摘要</h3>
-                <div class="divide-y">
-                    <div v-for="item in items.filter(i=>i.category==='物料')" class="py-3 flex justify-between items-center">
-                        <span class="font-bold text-slate-600">{{ item.name }}</span>
-                        <span class="bg-slate-100 px-3 py-1 rounded-lg font-black text-slate-800">{{ item.qty }} 板</span>
-                    </div>
+                    <p class="text-4xl font-black text-green-600 tracking-tighter">{{ stats.materialTotal }}板</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- 新增彈窗 (同前) -->
-    <div v-if="showAddModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+    <!-- 新增/修改 彈窗 -->
+    <div v-if="showModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
         <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative">
             <div v-if="uploading" class="absolute inset-0 bg-white/95 z-10 flex flex-col items-center justify-center rounded-[2rem]">
                 <div class="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p class="font-black text-red-800 text-xl animate-pulse">正在寫入雲端...</p>
+                <p class="font-black text-red-800 text-xl tracking-widest">系統處理中...</p>
             </div>
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-black text-slate-800 border-l-8 border-red-600 pl-3">新增存貨項目</h2>
-                <button @click="showAddModal = false" class="text-gray-400 text-3xl">&times;</button>
-            </div>
+            
+            <h2 class="text-2xl font-black mb-6 border-l-8 border-red-600 pl-3">
+                {{ isEditing ? '修改項目資訊' : '新增存貨項目' }}
+            </h2>
+
             <div class="space-y-5">
                 <div class="grid grid-cols-2 gap-2">
-                    <button @click="newItem.category = '設備'" :class="newItem.category === '設備' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-400'" class="py-3 rounded-xl font-bold transition">設備 (台)</button>
-                    <button @click="newItem.category = '物料'" :class="newItem.category === '物料' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-400'" class="py-3 rounded-xl font-bold transition">物料 (板)</button>
+                    <button @click="modalItem.category = '設備'" :class="modalItem.category === '設備' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-400'" class="py-3 rounded-xl font-bold transition">設備 (台)</button>
+                    <button @click="modalItem.category = '物料'" :class="modalItem.category === '物料' ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-400'" class="py-3 rounded-xl font-bold transition">物料 (板)</button>
                 </div>
-                <input v-model="newItem.name" type="text" placeholder="輸入名稱 (如: 酒瓶)" class="w-full bg-gray-100 rounded-xl px-5 py-4 outline-none font-bold">
-                <input v-model.number="newItem.qty" type="number" placeholder="輸入數量" class="w-full bg-gray-100 rounded-xl px-5 py-4 outline-none font-bold">
-                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50 relative cursor-pointer">
+                <div>
+                    <label class="text-xs font-bold text-gray-400 ml-1">物品名稱</label>
+                    <input v-model="modalItem.name" type="text" class="w-full bg-gray-100 rounded-xl px-5 py-3 font-bold outline-none border-2 border-transparent focus:border-red-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-400 ml-1">存放數量</label>
+                    <div class="flex items-center space-x-3 bg-gray-100 rounded-xl p-1">
+                        <button @click="modalItem.qty > 1 ? modalItem.qty-- : null" class="w-12 h-12 bg-white rounded-lg text-2xl font-bold text-gray-400 shadow-sm">-</button>
+                        <input v-model.number="modalItem.qty" type="number" class="flex-grow bg-transparent text-center font-black text-2xl outline-none">
+                        <button @click="modalItem.qty++" class="w-12 h-12 bg-white rounded-lg text-2xl font-bold text-red-600 shadow-sm">+</button>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-2xl p-4 bg-gray-50 relative cursor-pointer">
                     <input type="file" @change="handleFileUpload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer">
-                    <img v-if="newItem.image" :src="newItem.image" class="h-32 w-full object-cover rounded-xl shadow-md">
-                    <p v-else class="text-gray-400 font-bold tracking-widest uppercase text-xs">📷 點擊拍攝或選圖</p>
+                    <img v-if="modalItem.image || modalItem.photoID" :src="modalItem.image || 'https://drive.google.com/thumbnail?id=' + modalItem.photoID + '&sz=w400'" class="h-32 w-full object-contain rounded-xl">
+                    <p v-else class="text-gray-400 font-bold">📷 更新照片 (選填)</p>
                 </div>
-                <button @click="submitItem" class="w-full bg-red-800 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-red-200 hover:bg-red-900 transition">確認存檔</button>
+                <button @click="submitForm" class="w-full bg-red-800 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-red-200 hover:bg-red-900 transition">
+                    {{ isEditing ? '儲存修改內容' : '確認存檔' }}
+                </button>
+                <button @click="showModal = false" class="w-full text-gray-400 py-1 font-bold text-sm">取消返回</button>
             </div>
         </div>
     </div>
@@ -149,81 +132,94 @@ createApp({
     setup() {
         const loading = ref(true);
         const uploading = ref(false);
-        const showAddModal = ref(false);
+        const showModal = ref(false);
+        const isEditing = ref(false);
         const viewMode = ref('list');
         const currentTab = ref('全部');
         const searchQuery = ref('');
         const items = ref([]);
-        const newItem = ref({ category: '設備', name: '', qty: 1, image: null });
+        const modalItem = ref({ category: '設備', name: '', qty: 1, image: null, oldName: '' });
 
         const fetchData = async () => {
             loading.value = true;
             try {
                 const res = await fetch(`${API_URL}?t=${new Date().getTime()}`);
-                const data = await res.json();
-                items.value = Array.isArray(data) ? data : [];
-            } catch (e) { console.error('讀取失敗', e); }
+                items.value = await res.json();
+            } catch (e) { console.error(e); }
             loading.value = false;
         };
 
-        const submitItem = async () => {
-            if (!newItem.value.name || !newItem.value.image) return alert('請完整填寫名稱並拍照');
+        const openAddModal = () => {
+            isEditing.value = false;
+            modalItem.value = { category: '設備', name: '', qty: 1, image: null };
+            showModal.value = true;
+        };
+
+        const openEditModal = (item) => {
+            isEditing.value = true;
+            modalItem.value = { ...item, oldName: item.name, image: null };
+            showModal.value = true;
+        };
+
+        const deleteItem = async (item) => {
+            if (!confirm(`確定要從系統中刪除「${item.name}」嗎？`)) return;
             uploading.value = true;
             try {
-                await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(newItem.value) });
-                setTimeout(async () => {
-                    await fetchData();
-                    showAddModal.value = false;
-                    uploading.value = false;
-                    newItem.value = { category: '設備', name: '', qty: 1, image: null };
-                    alert('系統已同步更新');
-                }, 2000);
-            } catch (e) { alert('同步失敗'); uploading.value = false; }
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({ action: 'delete', name: item.name })
+                });
+                setTimeout(fetchData, 1500);
+            } catch (e) { alert('失敗'); }
+            uploading.value = false;
+        };
+
+        const submitForm = async () => {
+            if (!modalItem.value.name) return alert('請填寫名稱');
+            uploading.value = true;
+            try {
+                const payload = { 
+                    ...modalItem.value, 
+                    action: isEditing.value ? 'update' : 'add' 
+                };
+                await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                setTimeout(() => { fetchData(); showModal.value = false; uploading.value = false; }, 2000);
+            } catch (e) { alert('操作失敗'); uploading.value = false; }
         };
 
         const filteredItems = computed(() => {
-            return items.value.filter(i => {
-                const matchTab = currentTab.value === '全部' || i.category === currentTab.value;
-                const matchSearch = String(i.name).includes(searchQuery.value);
-                return matchTab && matchSearch;
-            }).reverse();
+            return items.value.filter(i => (currentTab.value === '全部' || i.category === currentTab.value) && String(i.name).includes(searchQuery.value)).reverse();
         });
 
         const stats = computed(() => {
             const eq = items.value.filter(i => i.category === '設備');
             const mat = items.value.filter(i => i.category === '物料');
-            const eqTotal = eq.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-            const matTotal = mat.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-            const total = eqTotal + matTotal || 1;
             return {
-                equipmentCount: eq.length,
-                materialCount: mat.length,
-                equipmentTotal: eqTotal,
-                materialTotal: matTotal,
-                eqPercent: (eqTotal / total) * 100,
-                matPercent: (matTotal / total) * 100
+                equipmentTotal: eq.reduce((s, i) => s + (Number(i.qty) || 0), 0),
+                materialTotal: mat.reduce((s, i) => s + (Number(i.qty) || 0), 0)
             }
         });
-
-        const exportCSV = () => {
-            let csv = "\ufeff名稱,分類,數量,單位\n";
-            items.value.forEach(i => { csv += `${i.name},${i.category},${i.qty},${i.category === '設備' ? '台' : '板'}\n`; });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `五惠外倉報表_${new Date().toLocaleDateString()}.csv`;
-            link.click();
-        };
 
         const handleFileUpload = (e) => {
             const file = e.target.files[0];
             const reader = new FileReader();
-            reader.onload = (f) => { newItem.value.image = f.target.result; };
+            reader.onload = (f) => modalItem.value.image = f.target.result;
             reader.readAsDataURL(file);
         };
 
+        const exportCSV = () => {
+            let csv = "\ufeff名稱,分類,數量,單位\n";
+            items.value.forEach(i => csv += `${i.name},${i.category},${i.qty},${i.category === '設備' ? '台' : '板'}\n`);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `外倉清單_${new Date().toLocaleDateString()}.csv`;
+            a.click();
+        };
+
         onMounted(fetchData);
-        return { loading, uploading, showAddModal, viewMode, currentTab, searchQuery, filteredItems, items, stats, newItem, submitItem, exportCSV, handleFileUpload, fetchData };
+        return { loading, uploading, showModal, isEditing, viewMode, currentTab, searchQuery, filteredItems, stats, modalItem, openAddModal, openEditModal, submitForm, deleteItem, exportCSV, handleFileUpload };
     }
 }).mount('#app');
 </script>
