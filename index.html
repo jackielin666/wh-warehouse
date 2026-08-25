@@ -9,53 +9,30 @@
     <style>
         [v-cloak] { display: none; }
         .zoom-img { transform: scale(1.3); transition: transform 0.3s ease; }
-        .glass-bg {
-            position: absolute;
-            inset: 0;
-            background-size: cover;
-            background-position: center;
-            filter: blur(20px) brightness(0.85);
-            opacity: 0.4;
-        }
-        /* 標籤與按鈕樣式 */
-        .tag-style { font-size: 12px; font-weight: 900; padding: 6px 16px; border-radius: 12px; }
-        .btn-action { 
-            transition: all 0.2s; 
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); 
-            width: 52px; 
-            padding: 6px 0;
-            text-align: center;
-            font-size: 11px;
-            font-weight: 900;
-            border-radius: 10px;
-            border: 1.5px solid white;
-            color: white;
-        }
-        .btn-edit { background-color: #1d4ed8; }
-        .btn-del { background-color: #dc2626; }
-        .btn-action:active { transform: scale(0.9); }
-        /* 強制數字輸入框內容置中 */
-        input[type="number"]::-webkit-inner-spin-button, 
-        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        .number-input { text-align: center !important; }
+        .glass-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(20px) brightness(0.85); opacity: 0.4; }
+        .tag-style { font-size: 12px; font-weight: 900; padding: 6px 16px; border-radius: 12px; min-width: 60px; text-align: center; }
+        .btn-edit { background-color: #1d4ed8; color: white; border: 1.5px solid white; }
+        .btn-del { background-color: #dc2626; color: white; border: 1.5px solid white; }
+        .btn-action { transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); width: 52px; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 900; border-radius: 10px; }
+        .qty-container { display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; border-radius: 2.5rem; padding: 10px; border: 2px solid #e2e8f0; }
+        .qty-btn { width: 70px; height: 70px; background: white; border-radius: 1.5rem; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; border: 1px solid #cbd5e1; }
+        .qty-input { flex-grow: 1; background: transparent; border: none; text-align: center; font-weight: 900; font-size: 5rem; color: #b91c1c; outline: none; width: 80px; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased font-sans">
 
 <div id="app" v-cloak class="min-h-screen flex flex-col">
     
-    <!-- Header -->
     <header class="bg-red-800 text-white shadow-xl sticky top-0 z-50 px-4 py-3">
         <div class="container mx-auto flex justify-between items-center">
             <div @click="viewMode = 'list'" class="cursor-pointer">
                 <h1 class="text-xl md:text-2xl font-black tracking-widest text-white">五惠外倉系統</h1>
-                <p class="text-[10px] opacity-70 font-bold uppercase tracking-tighter">Inventory System</p>
+                <p class="text-[10px] opacity-70 font-bold uppercase tracking-tighter">Inventory v12.0</p>
             </div>
             <button @click="openAddModal" class="bg-yellow-400 hover:bg-yellow-500 text-red-955 px-5 py-2.5 rounded-xl font-black text-sm shadow-lg active:scale-90 transition">+ 新增物品</button>
         </div>
     </header>
 
-    <!-- Nav -->
     <nav class="bg-white border-b sticky top-[68px] z-40 shadow-sm flex">
         <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-3.5 font-black text-base transition">清單瀏覽</button>
         <button @click="viewMode = 'chart'" :class="viewMode === 'chart' ? 'border-b-4 border-red-600 text-red-700' : 'text-gray-400'" class="flex-1 py-3.5 font-black text-base transition">統計分析</button>
@@ -63,39 +40,29 @@
 
     <main class="container mx-auto px-4 py-6">
         
-        <!-- 搜尋與過濾 (清單模式) -->
         <div v-if="viewMode === 'list'" class="space-y-4 mb-8">
             <div class="flex p-1 bg-gray-200 rounded-2xl w-full md:w-fit shadow-inner border border-gray-300">
                 <button v-for="t in ['全部','設備','物料']" @click="currentTab = t" 
                     :class="currentTab === t ? 'bg-white shadow text-red-800 font-bold' : 'text-slate-500'"
                     class="flex-1 md:px-10 py-2.5 rounded-xl transition text-xs">{{ t }}</button>
             </div>
-            <input v-model="searchQuery" type="text" placeholder="🔍 快速搜尋物品名稱..." 
-                class="w-full px-6 py-3.5 bg-white border-2 border-slate-100 rounded-2xl shadow-sm focus:border-red-500 outline-none font-bold transition text-lg">
+            <input v-model="searchQuery" type="text" placeholder="🔍 搜尋物品..." class="w-full px-6 py-3.5 bg-white border-2 border-slate-100 rounded-2xl shadow-sm focus:border-red-500 outline-none font-bold transition text-lg">
         </div>
 
-        <!-- 模式一：清單內容 -->
         <div v-if="viewMode === 'list'">
-            <div v-if="loading" class="text-center py-20 text-gray-300 font-black text-xl animate-pulse tracking-widest italic uppercase">同步中...</div>
+            <div v-if="loading" class="text-center py-20 text-gray-300 font-black text-xl animate-pulse uppercase">Syncing...</div>
             
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 <div v-for="(item, index) in filteredItems" :key="index" class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col relative transition hover:shadow-xl">
                     <div class="h-72 bg-slate-100 relative overflow-hidden flex items-center justify-center border-b">
                         <div class="glass-bg" :style="{ backgroundImage: item.photoID ? `url(https://drive.google.com/thumbnail?id=${item.photoID}&sz=w100)` : '' }"></div>
-                        <img @click="previewImage(item)" 
-                             :src="item.photoID ? 'https://drive.google.com/thumbnail?id=' + item.photoID + '&sz=w800' : 'https://placehold.co/600x400?text=NO+IMAGE'" 
-                             class="max-w-full max-h-full object-contain relative z-10 zoom-img cursor-zoom-in">
-                        
-                        <span class="absolute top-4 left-4 bg-red-700 text-white shadow-lg z-20 uppercase tracking-wider tag-style">
-                            {{ item.category }}
-                        </span>
-
+                        <img @click="previewImage(item)" :src="item.photoID ? 'https://drive.google.com/thumbnail?id=' + item.photoID + '&sz=w800' : 'https://placehold.co/600x400?text=NO+IMAGE'" class="max-w-full max-h-full object-contain relative z-10 zoom-img cursor-zoom-in">
+                        <span class="absolute top-4 left-4 bg-red-700 text-white shadow-lg z-20 uppercase tracking-wider tag-style">{{ item.category }}</span>
                         <div class="absolute bottom-4 right-1.5 flex flex-col space-y-1.5 z-20">
                             <button @click="openEditModal(item)" class="btn-action btn-edit">修改</button>
                             <button @click="deleteItem(item)" class="btn-action btn-del">刪除</button>
                         </div>
                     </div>
-
                     <div class="px-6 py-3.5 flex justify-between items-center bg-white min-h-[64px]">
                         <h3 class="text-xl font-black text-slate-800 tracking-tight truncate pr-2">{{ item.name }}</h3>
                         <div class="text-right flex-shrink-0">
@@ -106,87 +73,66 @@
             </div>
         </div>
 
-        <!-- 模式二：統計分析 -->
         <div v-if="viewMode === 'chart'" class="max-w-4xl mx-auto space-y-10">
-            <!-- 總計卡片 -->
             <div class="grid grid-cols-2 gap-6">
                 <div class="bg-white p-8 rounded-[3rem] shadow-sm text-center border-b-8 border-blue-500">
-                    <p class="text-xs font-black text-slate-300 mb-1 tracking-widest uppercase">設備總計</p>
+                    <p class="text-xs font-black text-slate-300 mb-1 uppercase">設備總計</p>
                     <p class="text-5xl font-black text-blue-600 tracking-tighter">{{ stats.equipmentTotal }}<span class="text-base font-bold text-slate-300 ml-1">台</span></p>
                 </div>
                 <div class="bg-white p-8 rounded-[3rem] shadow-sm text-center border-b-8 border-green-500">
-                    <p class="text-xs font-black text-slate-300 mb-1 tracking-widest uppercase">物料總計</p>
+                    <p class="text-xs font-black text-slate-300 mb-1 uppercase">物料總計</p>
                     <p class="text-5xl font-black text-green-600 tracking-tighter">{{ stats.materialTotal }}<span class="text-base font-bold text-slate-300 ml-1">板</span></p>
                 </div>
             </div>
-
-            <!-- 設備細項清單 (新增於上方) -->
-            <div class="bg-white p-10 rounded-[3rem] shadow-lg border border-slate-100">
-                <h3 class="text-base font-black text-slate-800 mb-6 flex items-center border-l-8 border-blue-700 pl-4 uppercase tracking-widest">設備細項清單</h3>
+            <div v-for="cat in ['設備','物料']" class="bg-white p-10 rounded-[3rem] shadow-lg border border-slate-100">
+                <h3 class="text-base font-black mb-6 flex items-center border-l-8 pl-4 uppercase tracking-widest" :class="cat==='設備'?'text-blue-700 border-blue-700':'text-red-700 border-red-700'">{{cat}}細項清單</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-                    <div v-for="i in items.filter(x=>x.category==='設備')" :key="i.name" class="flex justify-between items-center py-3 border-b-2 border-slate-50">
+                    <div v-for="i in items.filter(x=>x.category===cat)" class="flex justify-between items-center py-3 border-b-2 border-slate-50">
                         <span class="font-bold text-lg text-slate-700">{{ i.name }}</span>
-                        <span class="font-black text-blue-600 text-lg bg-blue-50 px-3 py-1 rounded-xl">{{ i.qty }} 台</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 物料細項清單 -->
-            <div class="bg-white p-10 rounded-[3rem] shadow-lg border border-slate-100">
-                <h3 class="text-base font-black text-slate-800 mb-6 flex items-center border-l-8 border-red-700 pl-4 uppercase tracking-widest">物料細項清單</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-                    <div v-for="i in items.filter(x=>x.category==='物料')" :key="i.name" class="flex justify-between items-center py-3 border-b-2 border-slate-50">
-                        <span class="font-bold text-lg text-slate-700">{{ i.name }}</span>
-                        <span class="font-black text-red-600 text-lg bg-red-50 px-3 py-1 rounded-xl">{{ i.qty }} 板</span>
+                        <span class="font-black text-lg bg-slate-50 px-3 py-1 rounded-xl" :class="cat==='設備'?'text-blue-600':'text-red-600'">{{ i.qty }} {{cat==='設備'?'台':'板'}}</span>
                     </div>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- 圖片大圖 -->
     <div v-if="zoomedImage" @click="zoomedImage = null" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 cursor-zoom-out shadow-inner">
         <img :src="zoomedImage" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-fadeIn">
         <div class="absolute top-8 right-8 text-white text-5xl font-light">&times;</div>
     </div>
 
-    <!-- 彈窗 -->
     <div v-if="showModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
         <div class="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl relative overflow-y-auto max-h-[95vh]">
             <div v-if="uploading" class="absolute inset-0 bg-white/95 z-10 flex flex-col items-center justify-center rounded-[3rem]">
                 <div class="w-16 h-16 border-8 border-red-700 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p class="font-black text-red-800 tracking-widest uppercase text-center animate-pulse">數據同步中...</p>
+                <p class="font-black text-red-800 tracking-widest uppercase">數據同步中...</p>
             </div>
-            
             <div class="flex justify-between items-center mb-8">
                 <h2 class="text-3xl font-black text-slate-800 tracking-tight">{{ isEditing ? '修改項目' : '新增入庫' }}</h2>
                 <button @click="showModal = false" class="text-slate-300 text-4xl font-light hover:text-red-600 transition">&times;</button>
             </div>
-
             <div class="space-y-8">
                 <div>
-                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">1. 分類</label>
+                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">1. 選擇類別</label>
                     <div class="grid grid-cols-2 gap-3">
-                        <button @click="modalItem.category = '設備'" :class="modalItem.category === '設備' ? 'bg-red-800 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400'" class="py-5 rounded-2xl font-black transition text-xl tracking-widest">設備</button>
-                        <button @click="modalItem.category = '物料'" :class="modalItem.category === '物料' ? 'bg-red-800 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400'" class="py-5 rounded-2xl font-black transition text-xl tracking-widest">物料</button>
+                        <button @click="modalItem.category = '設備'" :class="modalItem.category === '設備' ? 'bg-red-800 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400'" class="py-5 rounded-2xl font-black transition text-xl">設備</button>
+                        <button @click="modalItem.category = '物料'" :class="modalItem.category === '物料' ? 'bg-red-800 text-white shadow-xl scale-105' : 'bg-slate-100 text-slate-400'" class="py-5 rounded-2xl font-black transition text-xl">物料</button>
                     </div>
                 </div>
                 <div>
-                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">2. 品名</label>
+                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">2. 物品品名</label>
                     <input v-model="modalItem.name" type="text" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-5 font-black text-2xl text-slate-800 outline-none focus:border-red-700 transition shadow-inner">
                 </div>
                 <div>
                     <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">3. 數量調整</label>
-                    <div class="flex items-center space-x-0 bg-slate-100 rounded-[2.5rem] p-2 shadow-inner border border-slate-200 relative overflow-hidden">
-                        <button @click="modalItem.qty > 1 ? modalItem.qty-- : null" class="w-20 h-20 bg-white rounded-3xl text-4xl font-bold text-slate-300 active:scale-90 transition shadow-sm border border-slate-100 z-10">-</button>
-                        <div class="flex-grow flex justify-center items-center">
-                            <input v-model.number="modalItem.qty" type="number" class="w-full bg-transparent text-center font-black text-6xl outline-none text-red-700 number-input">
-                        </div>
-                        <button @click="modalItem.qty++" class="w-20 h-20 bg-white rounded-3xl text-4xl font-bold text-red-700 active:scale-90 transition shadow-sm border border-slate-100 z-10">+</button>
+                    <div class="qty-container">
+                        <button @click="modalItem.qty > 1 ? modalItem.qty-- : null" class="qty-btn text-slate-300 active:scale-90 transition">-</button>
+                        <input v-model.number="modalItem.qty" type="text" inputmode="numeric" class="qty-input">
+                        <button @click="modalItem.qty++" class="qty-btn text-red-700 active:scale-90 transition">+</button>
                     </div>
                 </div>
                 <div>
-                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">4. 拍攝照片</label>
+                    <label class="text-lg font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">4. 照片上記錄</label>
                     <div class="flex flex-col items-center justify-center border-4 border-dashed border-slate-200 rounded-[2.5rem] p-8 bg-slate-50 relative cursor-pointer overflow-hidden shadow-inner hover:bg-slate-100 transition">
                         <input type="file" @change="handleFileUpload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer">
                         <img v-if="modalItem.image || modalItem.photoID" :src="modalItem.image || 'https://drive.google.com/thumbnail?id=' + modalItem.photoID + '&sz=w400'" class="h-44 w-full object-contain rounded-2xl">
@@ -234,7 +180,7 @@ createApp({
 
         const openEditModal = (item) => {
             isEditing.value = true;
-            modalItem.value = { ...item, oldName: item.name, image: null };
+            modalItem.value = { ...item, qty: Number(item.qty), oldName: item.name, image: null };
             showModal.value = true;
         };
 
@@ -246,12 +192,8 @@ createApp({
             if (!confirm(`確定要刪除「${item.name}」嗎？`)) return;
             uploading.value = true;
             try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({ action: 'delete', name: item.name })
-                });
-                setTimeout(fetchData, 1500);
+                await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', name: item.name }) });
+                setTimeout(fetchData, 4000);
             } catch (e) { alert('失敗'); }
             uploading.value = false;
         };
@@ -265,14 +207,10 @@ createApp({
                     img.src = e.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
+                        let width = img.width, height = img.height;
                         const MAX_SIZE = 1024;
-                        if (width > height) {
-                            if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-                        } else {
-                            if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-                        }
+                        if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
+                        else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
                         canvas.width = width; canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
@@ -293,11 +231,33 @@ createApp({
         const submitForm = async () => {
             if (!modalItem.value.name) return alert('請輸入品名');
             uploading.value = true;
+            
+            // ★ 優化 1：樂觀更新 - 在送出前先改掉本機資料，讓畫面立刻變動
+            const originalQty = modalItem.value.qty;
+            if (isEditing.value) {
+                const idx = items.value.findIndex(i => i.name === modalItem.value.oldName);
+                if (idx !== -1) items.value[idx].qty = originalQty;
+            }
+
             try {
                 const payload = { ...modalItem.value, action: isEditing.value ? 'update' : 'add' };
-                await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                setTimeout(() => { fetchData(); showModal.value = false; uploading.value = false; }, 2000);
-            } catch (e) { alert('同步失敗'); uploading.value = false; }
+                await fetch(API_URL, { 
+                    method: 'POST', 
+                    mode: 'no-cors', 
+                    body: JSON.stringify(payload) 
+                });
+                
+                // ★ 優化 2：增加到 5 秒的延遲，等 Google 完全存檔再重新抓取
+                setTimeout(() => { 
+                    fetchData(); 
+                    showModal.value = false; 
+                    uploading.value = false; 
+                }, 5000); 
+
+            } catch (e) { 
+                alert('同步失敗，請檢查網路'); 
+                uploading.value = false; 
+            }
         };
 
         const filteredItems = computed(() => {
