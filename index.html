@@ -53,7 +53,7 @@
             <div class="flex items-center gap-2">
                 <div class="hdr-btn bg-white/15 pl-1 pr-0 gap-0">
                     <span class="w-8 h-8 rounded-lg bg-white text-brand-800 flex items-center justify-center text-sm font-black flex-shrink-0">{{ currentUser.name.split(' ').pop().charAt(0) }}</span>
-                    <span class="hidden sm:block text-sm font-black px-2.5 whitespace-nowrap">{{ currentUser.name }}</span>
+                    <span class="hidden sm:block text-sm font-black px-2.5 whitespace-nowrap">{{ currentUser.name }}<span v-if="!canEdit" class="ml-1.5 text-[10px] font-bold bg-white/25 rounded px-1.5 py-0.5 align-middle">唯讀</span></span>
                     <button @click="doLogout" title="登出" aria-label="登出" class="h-10 px-2.5 ml-1 sm:ml-0 border-l border-white/20 flex items-center gap-1.5 hover:bg-white/15 rounded-r-xl transition">
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
                         <span class="hidden md:inline text-xs font-bold">登出</span>
@@ -63,7 +63,7 @@
                     <svg :class="{ 'animate-spin': loading }" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
                     <span class="hidden sm:inline text-sm font-bold">刷新</span>
                 </button>
-                <button @click="openAddModal" class="hdr-btn bg-white hover:bg-brand-50 text-brand-800 px-3.5 shadow-md">
+                <button v-if="canEdit" @click="openAddModal" class="hdr-btn bg-white hover:bg-brand-50 text-brand-800 px-3.5 shadow-md">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                     <span class="text-sm font-black">新增</span>
                 </button>
@@ -88,7 +88,7 @@
                     <div class="glass-bg" :style="{ backgroundImage: item.photoID ? `url(https://drive.google.com/thumbnail?id=${item.photoID}&sz=w100)` : '' }"></div>
                     <img @click="previewImage(item)" :src="item.photoID ? 'https://drive.google.com/thumbnail?id=' + item.photoID + '&sz=w800' : 'https://placehold.co/600x400?text=NO+IMAGE'" class="max-w-full max-h-full object-contain relative z-10 zoom-img cursor-zoom-in">
                     <span class="absolute top-3 left-3 z-20 uppercase tracking-wider tag-style tag-3d">{{ item.category }}</span>
-                    <div class="absolute bottom-3 right-2 flex flex-col space-y-1.5 z-20">
+                    <div v-if="canEdit" class="absolute bottom-3 right-2 flex flex-col space-y-1.5 z-20">
                         <button @click="openEditModal(item)" class="btn-edit tag-style">修改</button>
                         <button @click="deleteItem(item)" class="btn-del tag-style">刪除</button>
                     </div>
@@ -144,26 +144,33 @@
 </div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbwivxljVfMXIxbugME9GmAIn4ig90jNFGCSCIhm8G8tg8pkmAw_TCxClYDUvZrXGLx4dg/exec';
-// 帳號 → SHA-256(SALT:帳號:密碼)；repo 公開，不可存放明碼密碼
-const AUTH_SALT = 'wuhuei-wh-v1';
-const USERS = {
-    "adm0": { name: "Jackie", hash: "e53ed788f0b20ae223dd24d9d3b8e9ee5148e67830a2b3ac421926fb4147a89a" },
-    "adm1": { name: "Tommy", hash: "c5f8af220e9d032fde1fa1c5bea2ffcf78d0e2361258cae1c037ccb719fb8d6b" },
-    "140": { name: "廠長 彭國榮", hash: "698dda007035b435b945feadbb390767acb7f1dcbadd244edf929126feccb96f" }
-};
-const SESSION_KEY = 'wh_session_v1', SESSION_DAYS = 7;
-const sha256Hex = async (text) => { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); };
-const loadSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); if (s && s.exp > Date.now() && USERS[s.account]) return { account: s.account, name: USERS[s.account].name }; } catch (e) {} return null; };
+// 帳密由 Apps Script 端驗證，登入後取得通行證（token），之後每次讀寫都要附上
+const SESSION_KEY = 'wh_session_v2';
+const loadSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); if (s && s.token && s.exp > Date.now()) return s; } catch (e) {} return null; };
+const clearSession = () => { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} };
 const { createApp, ref, computed, onMounted } = Vue;
 createApp({
     setup() {
         const currentUser = ref(loadSession()), loginForm = ref({ account: '', password: '' }), loginError = ref(''), loggingIn = ref(false);
         const loading = ref(true), uploading = ref(false), showModal = ref(false), isEditing = ref(false), viewMode = ref('list'), currentTab = ref('全部'), searchQuery = ref(''), items = ref([]), zoomedImage = ref(null), modalItem = ref({ id: '', category: '設備', name: '', qty: 1, image: null, oldName: '' }), sessionLock = ref({});
-        const fetchData = async () => { loading.value = true; try { const res = await fetch(`${API_URL}?t=${new Date().getTime()}`); const data = await res.json(); items.value = data.map(i => { if (sessionLock.value[i.id]) i.qty = sessionLock.value[i.id]; return i; }); } catch (e) { console.error(e); } loading.value = false; };
-        const openAddModal = () => { isEditing.value = false; modalItem.value = { id: '', category: '設備', name: '', qty: 1, image: null }; showModal.value = true; };
-        const openEditModal = (item) => { isEditing.value = true; modalItem.value = { ...item, qty: Number(item.qty), image: null }; showModal.value = true; };
+        const forceRelogin = (msg) => { clearSession(); currentUser.value = null; items.value = []; showModal.value = false; uploading.value = false; loginError.value = msg; };
+        const fetchData = async () => {
+            if (!currentUser.value) return;
+            loading.value = true;
+            try {
+                const res = await fetch(`${API_URL}?t=${new Date().getTime()}&token=${encodeURIComponent(currentUser.value.token)}`);
+                const data = await res.json();
+                if (data && data.error === 'unauthorized') { forceRelogin('登入已過期，請重新登入'); }
+                else items.value = data.map(i => { if (sessionLock.value[i.id]) i.qty = sessionLock.value[i.id]; return i; });
+            } catch (e) { console.error(e); }
+            loading.value = false;
+        };
+        const canEdit = computed(() => !!currentUser.value && currentUser.value.role === 'admin');
+        const postData = (payload) => fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ ...payload, token: currentUser.value.token }) });
+        const openAddModal = () => { if (!canEdit.value) return; isEditing.value = false; modalItem.value = { id: '', category: '設備', name: '', qty: 1, image: null }; showModal.value = true; };
+        const openEditModal = (item) => { if (!canEdit.value) return; isEditing.value = true; modalItem.value = { ...item, qty: Number(item.qty), image: null }; showModal.value = true; };
         const previewImage = (item) => { if (item.photoID) zoomedImage.value = 'https://drive.google.com/thumbnail?id=' + item.photoID + '&sz=w1600'; };
-        const deleteItem = async (item) => { if (!confirm(`確定要刪除「${item.name}」嗎？`)) return; uploading.value = true; try { await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', id: item.id }) }); setTimeout(fetchData, 2000); } catch (e) { alert('失敗'); } uploading.value = false; };
+        const deleteItem = async (item) => { if (!canEdit.value) return; if (!confirm(`確定要刪除「${item.name}」嗎？`)) return; uploading.value = true; try { await postData({ action: 'delete', id: item.id }); setTimeout(fetchData, 2000); } catch (e) { alert('失敗'); } uploading.value = false; };
         const compressImage = (file) => { return new Promise((resolve) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = (e) => { const img = new Image(); img.src = e.target.result; img.onload = () => { const canvas = document.createElement('canvas'); let width = img.width, height = img.height, MAX = 1024; if (width > height) { if (width > MAX) { height *= MAX / width; width = MAX; } } else { if (height > MAX) { width *= MAX / height; height = MAX; } } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height); resolve(canvas.toDataURL('image/jpeg', 0.6)); }; }; }); };
         const handleFileUpload = async (e) => { const file = e.target.files[0]; if (!file) return; uploading.value = true; modalItem.value.image = await compressImage(file); uploading.value = false; };
         const submitForm = async () => {
@@ -172,7 +179,7 @@ createApp({
             if (isEditing.value) { sessionLock.value[modalItem.value.id] = modalItem.value.qty; const idx = items.value.findIndex(i => i.id === modalItem.value.id); if (idx !== -1) items.value[idx].qty = modalItem.value.qty; }
             try {
                 const payload = { ...modalItem.value, action: isEditing.value ? 'update' : 'add' };
-                await fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                await postData(payload);
                 setTimeout(() => { showModal.value = false; uploading.value = false; fetchData(); }, 1500);
             } catch (e) { alert('同步失敗'); uploading.value = false; }
         };
@@ -180,24 +187,29 @@ createApp({
         const stats = computed(() => { const eq = items.value.filter(i => i.category === '設備'), mat = items.value.filter(i => i.category === '物料'); return { equipmentTotal: eq.reduce((s, i) => s + (Number(i.qty) || 0), 0), materialTotal: mat.reduce((s, i) => s + (Number(i.qty) || 0), 0) } });
         const doLogin = async () => {
             loginError.value = '';
-            const account = loginForm.value.account.trim(), user = USERS[account];
-            if (!account || !loginForm.value.password) { loginError.value = '請輸入帳號與密碼'; return; }
+            const account = loginForm.value.account.trim(), password = loginForm.value.password;
+            if (!account || !password) { loginError.value = '請輸入帳號與密碼'; return; }
             loggingIn.value = true;
-            const hash = await sha256Hex(`${AUTH_SALT}:${account}:${loginForm.value.password}`);
+            let res = null;
+            try {
+                const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'login', account, password }) });
+                res = await r.json();
+            } catch (e) { console.error(e); }
             loggingIn.value = false;
-            if (!user || user.hash !== hash) { loginError.value = '帳號或密碼錯誤'; loginForm.value.password = ''; return; }
-            try { localStorage.setItem(SESSION_KEY, JSON.stringify({ account, exp: Date.now() + SESSION_DAYS * 86400000 })); } catch (e) {}
-            currentUser.value = { account, name: user.name };
+            if (!res || !res.ok) { loginError.value = (res && res.error) || '無法連線到伺服器，請稍後再試'; loginForm.value.password = ''; return; }
+            const session = { account: res.account, name: res.name, role: res.role, token: res.token, exp: res.exp };
+            try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+            currentUser.value = session;
             loginForm.value = { account: '', password: '' };
             fetchData();
         };
         const doLogout = () => {
             if (!confirm(`${currentUser.value.name}，確定要登出嗎？`)) return;
-            try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+            clearSession();
             currentUser.value = null; items.value = []; showModal.value = false;
         };
         onMounted(() => { if (currentUser.value) fetchData(); });
-        return { currentUser, loginForm, loginError, loggingIn, doLogin, doLogout, loading, uploading, showModal, isEditing, viewMode, currentTab, searchQuery, filteredItems, items, stats, modalItem, zoomedImage, openAddModal, openEditModal, previewImage, submitForm, deleteItem, handleFileUpload, fetchData };
+        return { canEdit, currentUser, loginForm, loginError, loggingIn, doLogin, doLogout, loading, uploading, showModal, isEditing, viewMode, currentTab, searchQuery, filteredItems, items, stats, modalItem, zoomedImage, openAddModal, openEditModal, previewImage, submitForm, deleteItem, handleFileUpload, fetchData };
     }
 }).mount('#app');
 </script>
