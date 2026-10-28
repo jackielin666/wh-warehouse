@@ -27,13 +27,32 @@
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased font-sans">
 <div id="app" v-cloak class="min-h-screen flex flex-col">
+    <div v-if="!currentUser" class="min-h-screen flex items-center justify-center bg-brand-800 px-4">
+        <form @submit.prevent="doLogin" class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl space-y-5">
+            <div class="text-center">
+                <h1 class="text-2xl font-black tracking-widest text-brand-800">五惠外倉系統</h1>
+                <p class="text-xs font-bold text-slate-400 mt-1">請登入後使用</p>
+            </div>
+            <div><label class="text-sm font-black text-slate-500 mb-1 block">帳號</label>
+                <input v-model="loginForm.account" type="text" autocomplete="username" autocapitalize="off" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 font-black text-lg text-slate-700 focus:border-brand-500 outline-none"></div>
+            <div><label class="text-sm font-black text-slate-500 mb-1 block">密碼</label>
+                <input v-model="loginForm.password" type="password" autocomplete="current-password" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 font-black text-lg text-slate-700 focus:border-brand-500 outline-none"></div>
+            <p v-if="loginError" class="text-sm font-bold text-red-600 text-center">{{ loginError }}</p>
+            <button type="submit" :disabled="loggingIn" class="w-full bg-brand-800 text-white py-4 rounded-2xl font-black text-lg shadow-xl active:bg-brand-900 transition disabled:opacity-60">{{ loggingIn ? '驗證中...' : '登入' }}</button>
+        </form>
+    </div>
+    <template v-else>
     <header class="bg-brand-800 text-white shadow-xl sticky top-0 z-50 px-4 py-3">
         <div class="container mx-auto flex justify-between items-center">
             <div @click="viewMode = 'list'" class="cursor-pointer">
                 <h1 class="text-xl md:text-2xl font-black tracking-widest text-white">五惠外倉系統</h1>
                 <p class="text-[9px] opacity-60 font-bold uppercase tracking-tighter">Inventory v16.0</p>
             </div>
-            <div class="flex space-x-2">
+            <div class="flex items-center space-x-2">
+                <button @click="doLogout" class="text-right leading-tight px-1" title="登出">
+                    <span class="block text-xs font-black">{{ currentUser.name }}</span>
+                    <span class="block text-[10px] opacity-60 font-bold">登出</span>
+                </button>
                 <button @click="fetchData" class="bg-white/20 px-3 py-2 rounded-xl text-xs font-bold transition">🔄 刷新</button>
                 <button @click="openAddModal" class="bg-white hover:bg-brand-50 text-brand-800 px-4 py-2 rounded-xl font-black text-sm active:scale-90 transition">+ 新增</button>
             </div>
@@ -109,12 +128,24 @@
             </div>
         </div>
     </div>
+    </template>
 </div>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbwivxljVfMXIxbugME9GmAIn4ig90jNFGCSCIhm8G8tg8pkmAw_TCxClYDUvZrXGLx4dg/exec';
+// 帳號 → SHA-256(SALT:帳號:密碼)；repo 公開，不可存放明碼密碼
+const AUTH_SALT = 'wuhuei-wh-v1';
+const USERS = {
+    "adm0": { name: "Jackie", hash: "e53ed788f0b20ae223dd24d9d3b8e9ee5148e67830a2b3ac421926fb4147a89a" },
+    "adm1": { name: "Tommy", hash: "c5f8af220e9d032fde1fa1c5bea2ffcf78d0e2361258cae1c037ccb719fb8d6b" },
+    "140": { name: "廠長 彭國榮", hash: "698dda007035b435b945feadbb390767acb7f1dcbadd244edf929126feccb96f" }
+};
+const SESSION_KEY = 'wh_session_v1', SESSION_DAYS = 7;
+const sha256Hex = async (text) => { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); };
+const loadSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); if (s && s.exp > Date.now() && USERS[s.account]) return { account: s.account, name: USERS[s.account].name }; } catch (e) {} return null; };
 const { createApp, ref, computed, onMounted } = Vue;
 createApp({
     setup() {
+        const currentUser = ref(loadSession()), loginForm = ref({ account: '', password: '' }), loginError = ref(''), loggingIn = ref(false);
         const loading = ref(true), uploading = ref(false), showModal = ref(false), isEditing = ref(false), viewMode = ref('list'), currentTab = ref('全部'), searchQuery = ref(''), items = ref([]), zoomedImage = ref(null), modalItem = ref({ id: '', category: '設備', name: '', qty: 1, image: null, oldName: '' }), sessionLock = ref({});
         const fetchData = async () => { loading.value = true; try { const res = await fetch(`${API_URL}?t=${new Date().getTime()}`); const data = await res.json(); items.value = data.map(i => { if (sessionLock.value[i.id]) i.qty = sessionLock.value[i.id]; return i; }); } catch (e) { console.error(e); } loading.value = false; };
         const openAddModal = () => { isEditing.value = false; modalItem.value = { id: '', category: '設備', name: '', qty: 1, image: null }; showModal.value = true; };
@@ -135,8 +166,26 @@ createApp({
         };
         const filteredItems = computed(() => { return items.value.filter(i => (currentTab.value === '全部' || i.category === currentTab.value) && String(i.name).toLowerCase().includes(searchQuery.value.toLowerCase())).reverse(); });
         const stats = computed(() => { const eq = items.value.filter(i => i.category === '設備'), mat = items.value.filter(i => i.category === '物料'); return { equipmentTotal: eq.reduce((s, i) => s + (Number(i.qty) || 0), 0), materialTotal: mat.reduce((s, i) => s + (Number(i.qty) || 0), 0) } });
-        onMounted(fetchData);
-        return { loading, uploading, showModal, isEditing, viewMode, currentTab, searchQuery, filteredItems, items, stats, modalItem, zoomedImage, openAddModal, openEditModal, previewImage, submitForm, deleteItem, handleFileUpload, fetchData };
+        const doLogin = async () => {
+            loginError.value = '';
+            const account = loginForm.value.account.trim(), user = USERS[account];
+            if (!account || !loginForm.value.password) { loginError.value = '請輸入帳號與密碼'; return; }
+            loggingIn.value = true;
+            const hash = await sha256Hex(`${AUTH_SALT}:${account}:${loginForm.value.password}`);
+            loggingIn.value = false;
+            if (!user || user.hash !== hash) { loginError.value = '帳號或密碼錯誤'; loginForm.value.password = ''; return; }
+            try { localStorage.setItem(SESSION_KEY, JSON.stringify({ account, exp: Date.now() + SESSION_DAYS * 86400000 })); } catch (e) {}
+            currentUser.value = { account, name: user.name };
+            loginForm.value = { account: '', password: '' };
+            fetchData();
+        };
+        const doLogout = () => {
+            if (!confirm(`${currentUser.value.name}，確定要登出嗎？`)) return;
+            try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+            currentUser.value = null; items.value = []; showModal.value = false;
+        };
+        onMounted(() => { if (currentUser.value) fetchData(); });
+        return { currentUser, loginForm, loginError, loggingIn, doLogin, doLogout, loading, uploading, showModal, isEditing, viewMode, currentTab, searchQuery, filteredItems, items, stats, modalItem, zoomedImage, openAddModal, openEditModal, previewImage, submitForm, deleteItem, handleFileUpload, fetchData };
     }
 }).mount('#app');
 </script>
